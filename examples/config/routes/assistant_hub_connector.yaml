@@ -1,0 +1,2 @@
+assistant_hub_connector:
+  resource: '@AssistantHubConnectorBundle/config/routes.yaml'

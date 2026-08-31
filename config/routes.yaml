@@ -1,0 +1,16 @@
+assistant_hub_connector_discovery:
+  resource: ../src/Controller/DiscoveryController.php
+  type: attribute
+
+assistant_hub_connector_authorization:
+  resource: ../src/Controller/AuthorizationController.php
+  type: attribute
+
+assistant_hub_connector_revocation:
+  resource: ../src/Controller/RevocationController.php
+  type: attribute
+
+assistant_hub_connector_api:
+  resource: ../src/Controller/ConnectorController.php
+  type: attribute
+  prefix: /assistant-hub

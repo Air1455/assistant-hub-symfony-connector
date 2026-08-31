@@ -1,0 +1,6 @@
+services:
+  AssistantHub\SymfonyConnector\Example\ProjectListCapability:
+    tags: ['assistant_hub_connector.capability']
+
+  AssistantHub\SymfonyConnector\Example\TaskCreateCapability:
+    tags: ['assistant_hub_connector.capability']

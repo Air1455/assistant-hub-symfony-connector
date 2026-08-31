@@ -1,0 +1,72 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+
+  AssistantHub\SymfonyConnector\:
+    resource: '../src/'
+    exclude:
+      - '../src/DependencyInjection/'
+      - '../src/AssistantHubConnectorBundle.php'
+      - '../src/Protocol/'
+      - '../src/Example/'
+      - '../src/Capability/ConfiguredApiCapability.php'
+
+  AssistantHub\SymfonyConnector\Registry\CapabilityRegistry:
+    arguments:
+      $capabilities: !tagged_iterator assistant_hub_connector.capability
+
+  AssistantHub\SymfonyConnector\Contract\PairAuthenticatorInterface:
+    alias: AssistantHub\SymfonyConnector\Security\HmacPairAuthenticator
+
+  AssistantHub\SymfonyConnector\Contract\LocalAuthorizationInterface:
+    alias: AssistantHub\SymfonyConnector\Security\VaultLocalAuthorization
+
+  AssistantHub\SymfonyConnector\Contract\ProposalStoreInterface:
+    alias: AssistantHub\SymfonyConnector\Store\SqliteProposalStore
+
+  AssistantHub\SymfonyConnector\Security\DemoPairAuthenticator:
+    arguments:
+      $demoMode: '%assistant_hub_connector.demo_mode%'
+      $demoPairKey: '%assistant_hub_connector.demo_pair_key%'
+
+  AssistantHub\SymfonyConnector\Security\DemoLocalAuthorization:
+    arguments:
+      $demoMode: '%assistant_hub_connector.demo_mode%'
+
+  AssistantHub\SymfonyConnector\Service\ConnectorService:
+    arguments:
+      $proposalTtlSeconds: '%assistant_hub_connector.proposal_ttl_seconds%'
+
+  AssistantHub\SymfonyConnector\Storage\ConnectorDatabase:
+    arguments:
+      $path: '%assistant_hub_connector.storage_path%'
+
+  AssistantHub\SymfonyConnector\Security\SecretCipher:
+    arguments:
+      $masterKey: '%assistant_hub_connector.encryption_key%'
+
+  AssistantHub\SymfonyConnector\Service\SiteApiClient:
+    arguments:
+      $baseUrl: '%assistant_hub_connector.api_base_url%'
+      $authentication: '%assistant_hub_connector.authentication%'
+
+  AssistantHub\SymfonyConnector\Service\AuthorizationService:
+    arguments:
+      $allowedRedirectUris: '%assistant_hub_connector.allowed_hub_redirect_uris%'
+
+  AssistantHub\SymfonyConnector\Security\HmacPairAuthenticator:
+    arguments:
+      $clockSkewSeconds: 300
+
+  AssistantHub\SymfonyConnector\Controller\AuthorizationController:
+    arguments:
+      $connectorName: '%assistant_hub_connector.connector_name%'
+
+  AssistantHub\SymfonyConnector\Controller\DiscoveryController:
+    arguments:
+      $authorizationEndpoint: '/connector/authorize'
+      $tokenEndpoint: '/assistant-hub/pairing/token'
+  AssistantHub\SymfonyConnector\Registry\AdapterRegistry:
+    arguments:
+      $adapters: !tagged_iterator assistant_hub_connector.site_adapter

@@ -1,0 +1,84 @@
+name: Continuous integration
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: PHP ${{ matrix.php }} / Symfony ${{ matrix.symfony }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.2'
+            symfony: '6.4.*'
+          - php: '8.3'
+            symfony: '7.4.*'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: json, openssl, pdo, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ runner.os }}-${{ matrix.php }}-${{ matrix.symfony }}-${{ hashFiles('composer.json') }}
+      - run: composer validate --strict
+      - name: Resolve supported Symfony branch
+        run: |
+          composer update --no-interaction --prefer-dist --no-progress \
+            --with "symfony/cache:${{ matrix.symfony }}" \
+            --with "symfony/config:${{ matrix.symfony }}" \
+            --with "symfony/dependency-injection:${{ matrix.symfony }}" \
+            --with "symfony/framework-bundle:${{ matrix.symfony }}" \
+            --with "symfony/http-client:${{ matrix.symfony }}" \
+            --with "symfony/http-foundation:${{ matrix.symfony }}" \
+            --with "symfony/routing:${{ matrix.symfony }}" \
+            --with "symfony/yaml:${{ matrix.symfony }}"
+      - run: composer audit --locked --no-dev
+      - run: php vendor/bin/phpunit
+
+  package:
+    name: Release artifact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: json, openssl, pdo, pdo_sqlite, zip
+          coverage: none
+          tools: composer:v2
+      - name: Build archive
+        run: |
+          mkdir -p /tmp/assistant-hub-dist
+          composer archive --format=zip --dir=/tmp/assistant-hub-dist
+      - name: Verify archive contents
+        run: |
+          archive="$(find /tmp/assistant-hub-dist -maxdepth 1 -name '*.zip' -print -quit)"
+          test -n "$archive"
+          unzip -Z1 "$archive" > /tmp/assistant-hub-archive-files.txt
+          grep -qx 'composer.json' /tmp/assistant-hub-archive-files.txt
+          if grep -Eq '^(vendor|var|tests)/|^(composer.lock|phpunit.xml.dist|\.phpunit.result.cache)$' /tmp/assistant-hub-archive-files.txt; then
+            echo 'The release archive contains development-only files.' >&2
+            exit 1
+          fi
+      - name: Install package in a clean consumer
+        run: |
+          archive="$(find /tmp/assistant-hub-dist -maxdepth 1 -name '*.zip' -print -quit)"
+          package=/tmp/assistant-hub-package
+          consumer=/tmp/assistant-hub-consumer
+          mkdir -p "$package" "$consumer"
+          unzip -q "$archive" -d "$package"
+          cd "$consumer"
+          composer init --name=assistant-hub/package-smoke-test --no-interaction
+          composer config repositories.connector path "$package"
+          composer require assistant-hub/symfony-connector:@dev --no-interaction --prefer-dist --no-progress

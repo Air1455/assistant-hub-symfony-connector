@@ -1,0 +1,59 @@
+assistant_hub_connector:
+  connector_id: 'my-symfony-site'
+  connector_name: 'Mon site Symfony'
+  storage_path: '%kernel.project_dir%/var/assistant-hub/connector.sqlite'
+  encryption_key: '%env(ASSISTANT_HUB_CONNECTOR_KEY)%'
+  api_base_url: '%env(SITE_API_BASE_URL)%'
+  allowed_hub_redirect_uris:
+    - '%env(ASSISTANT_HUB_REDIRECT_URI)%'
+  pairing_modes: ['authorization_code_pkce']
+  demo_mode: false
+  demo_example_capabilities: false
+  proposal_ttl_seconds: 600
+  authentication:
+    login_path: '/api/login_check'
+    refresh_path: '/api/token/refresh'
+    username_field: 'email'
+    password_field: 'password'
+    access_token_field: 'token'
+    refresh_token_field: 'refresh_token'
+    identity_field: 'user'
+  capabilities:
+    contact_list:
+      id: 'site.contact.list'
+      version: '1.0'
+      kind: 'read'
+      title: 'Lister les contacts'
+      description: 'Retourne les contacts visibles par le compte connecté.'
+      method: 'GET'
+      path: '/api/contacts'
+      accept: 'application/json'
+      input_schema:
+        type: object
+        additionalProperties: false
+        properties:
+          limit: { type: integer, minimum: 1, maximum: 50 }
+      output_schema:
+        type: object
+        properties:
+          items:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                  title: 'Nom du contact'
+                  description: 'Nom affiché du contact.'
+                  x-assistant-hub-list-label: 'les noms des contacts'
+                  x-assistant-hub-primary: true
+                email:
+                  type: string
+                  title: 'Adresse e-mail du contact'
+                  x-assistant-hub-list-label: 'les adresses e-mail des contacts'
+          count: { type: integer }
+      input_mapping:
+        limit: 'limit'
+      response:
+        collection_paths: ['items']
+        max_items: 50
