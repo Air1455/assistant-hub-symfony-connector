@@ -2,15 +2,18 @@
 
 namespace AssistantHub\SymfonyConnector\Service;
 
+use AssistantHub\SymfonyConnector\Contract\CapabilityInterface;
 use AssistantHub\SymfonyConnector\Contract\LocalAuthorizationInterface;
 use AssistantHub\SymfonyConnector\Contract\PairAuthenticatorInterface;
 use AssistantHub\SymfonyConnector\Contract\ProposalStoreInterface;
 use AssistantHub\SymfonyConnector\Protocol\Confirmation;
 use AssistantHub\SymfonyConnector\Protocol\ExecutionResult;
+use AssistantHub\SymfonyConnector\Protocol\LocalContext;
 use AssistantHub\SymfonyConnector\Protocol\Proposal;
 use AssistantHub\SymfonyConnector\Protocol\ProposalExecutionReservation;
 use AssistantHub\SymfonyConnector\Protocol\ProtocolException;
 use AssistantHub\SymfonyConnector\Registry\CapabilityRegistry;
+use AssistantHub\SymfonyConnector\Validation\JsonSchemaValidator;
 use Symfony\Component\HttpFoundation\Request;
 
 final class ConnectorService
@@ -21,6 +24,7 @@ final class ConnectorService
         private readonly LocalAuthorizationInterface $localAuthorization,
         private readonly ProposalStoreInterface $proposalStore,
         private readonly int $proposalTtlSeconds,
+        private readonly JsonSchemaValidator $schemaValidator = new JsonSchemaValidator(),
     ) {
     }
 
@@ -54,10 +58,11 @@ final class ConnectorService
 
         $normalized = $this->normalize($capability, $input);
         $context = $this->localAuthorization->authorize($pair, $definition, $normalized);
+        $data = $this->executeCapability($capability, $normalized, $context);
 
         return (new ExecutionResult(
             $definition->id,
-            $capability->execute($normalized, $context),
+            $data,
             'read_'.bin2hex(random_bytes(12)),
         ))->toArray();
     }
@@ -124,7 +129,7 @@ final class ConnectorService
             // Les droits sont réévalués après la réservation et juste avant l'appel officiel.
             $context = $this->localAuthorization->authorize($pair, $definition, $proposal->input)
                 ->withIdempotencyKey($reservation->idempotencyKey);
-            $data = $capability->execute($proposal->input, $context);
+            $data = $this->executeCapability($capability, $proposal->input, $context);
         } catch (ProtocolException $exception) {
             $this->proposalStore->fail($proposal->id, $exception->protocolCode);
             throw $exception;
@@ -152,5 +157,29 @@ final class ConnectorService
         } catch (\InvalidArgumentException|\DomainException $exception) {
             throw new ProtocolException('INVALID_INPUT', $exception->getMessage(), 422);
         }
+    }
+
+    /** @param array<string, mixed> $input @return array<string, mixed> */
+    private function executeCapability(CapabilityInterface $capability, array $input, LocalContext $context): array
+    {
+        $data = $capability->execute($input, $context);
+        try {
+            $this->schemaValidator->assertValid(
+                $data,
+                $capability->definition()->outputSchema,
+                'output',
+                true,
+            );
+        } catch (\InvalidArgumentException $exception) {
+            throw new ProtocolException(
+                'CAPABILITY_OUTPUT_INVALID',
+                'La capacité du site a renvoyé une sortie non conforme à son contrat.',
+                500,
+                false,
+                previous: $exception,
+            );
+        }
+
+        return $data;
     }
 }

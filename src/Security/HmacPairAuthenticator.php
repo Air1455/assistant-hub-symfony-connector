@@ -30,7 +30,7 @@ final readonly class HmacPairAuthenticator implements PairAuthenticatorInterface
             $pair = $this->store->pair($pairId);
             $vault = $this->store->vault($pair['vaultId']);
         } catch (\DomainException|\RuntimeException) {
-            throw new ProtocolException('AUTHENTICATION_FAILED', 'The connector pair is invalid.', 401);
+            throw new ProtocolException('PAIR_INVALID', 'The connector pair is invalid or revoked.', 401);
         }
         $canonical = implode("\n", [
             strtoupper($request->getMethod()),

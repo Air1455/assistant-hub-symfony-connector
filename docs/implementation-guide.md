@@ -22,16 +22,16 @@ rétrocompatible et ne constitue pas un contournement propre au connecteur.
 | Élément | Squelette | Intégration du site | API du site |
 | --- | --- | --- | --- |
 | PKCE, appairage, signatures, anti-rejeu | Fournit | Configure les origines | Non |
-| Coffre chiffré et SQLite technique | Fournit | Fournit chemin et secret | Non |
+| Coffre chiffré et SQLite technique | Fournit | Fournit chemin, secret et stratégie d’identité | Non |
 | Méthodes, routes et formats API | Ne décide pas | Déclare l'existant | Fait autorité |
 | Mapping des paramètres et réponses | Moteur générique | Configure ou adapte | Garde son contrat |
 | Préfiltrage par rôles | Mécanisme | Déclare | Autorise réellement |
-| Règles métier et transactions | Non | Non | Oui |
-| Entités, repositories, base métier | Aucun accès | Aucun accès | Oui |
+| Règles métier et transactions | Non | Appelle les services publics existants | Fait autorité |
+| Entités et repositories | N’en connaît aucun | Peut les utiliser derrière un service dédié du site | Fait autorité |
 | Confirmation des écritures | Fournit | Déclare | Honore l'idempotence |
 
 Une intégration est incorrecte si le connecteur importe une entité du site,
-interroge sa base métier, invente une route non publique ou demande de changer
+interroge directement sa base métier, invente une route non publique ou demande de changer
 un format existant uniquement pour lui.
 
 ## Phase 0 — Inventorier l'API officielle
@@ -41,6 +41,8 @@ Produire une fiche factuelle :
 - URL de base par environnement ;
 - endpoint de login et corps attendu ;
 - champs des jetons et de l'identité ;
+- ou, pour un site Symfony à pages serveur, firewall, session, identité locale
+  stable et service capable de recharger les droits ;
 - endpoint et politique de rafraîchissement ;
 - endpoint de révocation, s'il existe ;
 - formats négociés, par exemple `application/json` ou
@@ -141,7 +143,9 @@ Fournir les valeurs via le gestionnaire de secrets ou `.env.local`.
 - sauvegarde, permissions et rotation décidées avant production ;
 - stockage du connecteur distinct de la base et des migrations métier.
 
-## Phase 5 — Décrire l'authentification existante
+## Phase 5 — Choisir la stratégie d’identité existante
+
+### API à jetons
 
 ```yaml
 assistant_hub_connector:
@@ -149,6 +153,7 @@ assistant_hub_connector:
   connector_name: 'Mon site'
   storage_path: '%kernel.project_dir%/var/assistant-hub/connector.sqlite'
   encryption_key: '%env(ASSISTANT_HUB_CONNECTOR_KEY)%'
+  pairing_identity_provider: 'api_token'
   api_base_url: '%env(SITE_API_BASE_URL)%'
   allowed_hub_redirect_uris:
     - '%env(ASSISTANT_HUB_REDIRECT_URI)%'
@@ -170,6 +175,33 @@ Contrat actuel : login et rafraîchissement en `POST` JSON, champs de premier
 niveau, identité incluse dans la réponse de login et chemins relatifs à
 `api_base_url`. Si le site diffère, faire évoluer le squelette générique au
 lieu de déformer son API.
+
+### Session Symfony existante
+
+```yaml
+assistant_hub_connector:
+  connector_id: 'my-site'
+  connector_name: 'Mon site'
+  storage_path: '%kernel.project_dir%/var/assistant-hub/connector.sqlite'
+  encryption_key: '%env(ASSISTANT_HUB_CONNECTOR_KEY)%'
+  pairing_identity_provider: 'symfony_session'
+  allowed_hub_redirect_uris:
+    - '%env(ASSISTANT_HUB_REDIRECT_URI)%'
+  pairing_modes: ['authorization_code_pkce']
+  demo_mode: false
+  demo_example_capabilities: false
+```
+
+Cette stratégie convient à une application Symfony qui possède déjà une
+authentification navigateur. La route `/connector/authorize` doit rester sous
+le firewall du site. Le connecteur lit l’utilisateur courant uniquement pendant
+le consentement, ne copie aucun secret de session et crée ensuite la même paire
+HMAC révocable que dans le mode API.
+
+L’intégration fournit un `SessionUserIdentityMapperInterface` et un
+`LocalAuthorizationInterface`. Ce dernier recharge l’utilisateur à chaque
+appel du Hub, refuse un compte supprimé ou désactivé et recalcule les rôles
+courants. La durée de la paire ne dépend donc pas de la session navigateur.
 
 ## Phase 6 — Implémenter une capacité à la fois
 

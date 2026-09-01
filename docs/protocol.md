@@ -14,9 +14,15 @@ Le contrat complet est défini à la racine dans `docs/protocol.md`. Cette copie
 
 Méthode, chemin, horodatage, nonce et hash du corps sont signés par HMAC. Une paire expirée/révoquée, une signature invalide ou un nonce déjà vu est refusé.
 
+Une paire inconnue, expirée ou déjà révoquée renvoie le code structuré
+`PAIR_INVALID`. Une signature incorrecte, incomplète ou hors fenêtre conserve
+le code `AUTHENTICATION_FAILED` afin que le Hub ne confonde pas ces situations.
+
 ## Capacités
 
-Le registre fermé associe un identifiant à une méthode et un chemin d’API fixes. Les entrées sont normalisées avant autorisation. Les adaptateurs ne peuvent modifier la destination déclarée.
+Le registre fermé associe un identifiant à une opération bornée. Les entrées
+sont normalisées avant autorisation et toutes les sorties, YAML comme PHP, sont
+validées contre le schéma annoncé. Les adaptateurs ne peuvent modifier la destination déclarée.
 
 ## Écritures
 
@@ -31,4 +37,5 @@ L’API officielle doit honorer `Idempotency-Key`. Si un succès possible n’a 
 - `EXECUTION_IN_PROGRESS` : une réservation concurrente existe ;
 - `EXECUTION_FAILED` : l’exécution a échoué et est bloquée ;
 - `EXECUTION_STATE_INVALID` : résultat durable incohérent ;
-- `EXECUTION_STATE_UNCERTAIN` : succès possible, persistance du résultat impossible.
+- `EXECUTION_STATE_UNCERTAIN` : succès possible, persistance du résultat impossible ;
+- `CAPABILITY_OUTPUT_INVALID` : la sortie du service du site ne respecte pas le schéma annoncé.

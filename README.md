@@ -6,6 +6,7 @@ Bundle Symfony générique à installer dans chaque site relié à Assistant Hub
 
 - découverte publique minimale ;
 - interface `/connector`, session et CSRF ;
+- jumelage par API à jetons ou par session Symfony existante ;
 - Authorization Code + PKCE ;
 - transmission du login à l’API officielle ;
 - coffre AES-256-GCM et stockage SQLite propre ;
@@ -34,7 +35,7 @@ dans `examples/config/` et la procédure détaillée dans
 Pour développer le paquet depuis le monorepo Assistant Hub, utilisez un
 repository Composer de type `path`.
 
-## Configuration minimale
+## Configuration minimale avec une API à jetons
 
 ```yaml
 assistant_hub_connector:
@@ -42,6 +43,7 @@ assistant_hub_connector:
   connector_name: 'Example site'
   storage_path: '%kernel.project_dir%/var/assistant-hub/connector.sqlite'
   encryption_key: '%env(ASSISTANT_HUB_CONNECTOR_KEY)%'
+  pairing_identity_provider: 'api_token'
   api_base_url: 'https://api.example.test'
   allowed_hub_redirect_uris:
     - 'https://hub.example.test/sites/callback'
@@ -64,6 +66,26 @@ assistant_hub_connector:
 ```
 
 Les identifiants, URLs, méthodes et chemins proviennent exclusivement de cette configuration locale. Le Hub ne peut pas les remplacer.
+
+Pour une application Symfony à pages serveur utilisant déjà `form_login`, le
+connecteur peut réutiliser la session locale pour le consentement sans créer de
+JWT ni copier le cookie de session :
+
+```yaml
+assistant_hub_connector:
+  connector_id: 'example-site'
+  connector_name: 'Example site'
+  storage_path: '%kernel.project_dir%/var/assistant-hub/connector.sqlite'
+  encryption_key: '%env(ASSISTANT_HUB_CONNECTOR_KEY)%'
+  pairing_identity_provider: 'symfony_session'
+  allowed_hub_redirect_uris:
+    - 'https://hub.example.test/sites/callback'
+```
+
+Dans ce mode, l’application hôte protège `/connector/authorize` avec son
+firewall habituel et fournit une autorisation locale qui recharge l’utilisateur
+et ses droits à chaque appel signé. La paire HMAC reste indépendante de la durée
+de la session du navigateur.
 
 ## Deux niveaux d'extension
 
@@ -115,7 +137,7 @@ vendor\bin\simple-phpunit.bat --bootstrap vendor/autoload.php tests\EndToEnd\Loc
 
 ## Limites
 
-- l'identité doit actuellement être incluse dans la réponse de login ;
+- en mode `api_token`, l'identité doit être incluse dans la réponse de login ;
 - la révocation distante configurée n'est pas encore exécutée ;
 - pas de limitation de débit intégrée ;
 - rotation multi-clés et sauvegarde SQLite à définir pour la production ;

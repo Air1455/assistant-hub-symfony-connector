@@ -695,7 +695,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     connector_name?: scalar|Param|null, // Default: "Site Symfony"
  *     storage_path?: scalar|Param|null, // Default: "%kernel.project_dir%/var/assistant-hub/connector.sqlite"
  *     encryption_key?: scalar|Param|null,
- *     api_base_url?: scalar|Param|null,
+ *     pairing_identity_provider?: "api_token"|"symfony_session"|Param, // Default: "api_token"
+ *     api_base_url?: scalar|Param|null, // Default: ""
  *     allowed_hub_redirect_uris?: list<scalar|Param|null>,
  *     authentication?: array{
  *         login_path?: scalar|Param|null, // Default: "/api/login_check"

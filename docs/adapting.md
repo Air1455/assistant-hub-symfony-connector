@@ -1,6 +1,9 @@
 # Adapter le connecteur à une application Symfony
 
-L'adaptation décrit l'API du site ; elle ne recopie pas la logique générique du connecteur et n'accède pas au code métier interne.
+L'adaptation décrit le contrat existant du site. Pour une API, elle configure
+des appels bornés. Pour une application monolithique, une capacité PHP peut
+injecter des services applicatifs publics du site. Elle ne contourne jamais ces
+services par un accès direct aux tables ni ne duplique leurs règles métier.
 
 La procédure complète et les critères de validation sont dans
 `implementation-guide.md`. Toute étude de cas propre à un site reste dans le
@@ -72,6 +75,31 @@ Les objets de sortie sont fermés par défaut : un champ supplémentaire produit
 l'API ou un adaptateur est refusé s'il n'est pas déclaré dans `output_schema`.
 Une lecture utilise obligatoirement `GET`; toute autre méthode est une écriture
 confirmée.
+
+## 2 bis. Application Symfony à session
+
+Si le site utilise déjà `form_login` et n’expose pas d’API à jetons, ne créez
+pas un mécanisme JWT uniquement pour Assistant Hub. Utilisez :
+
+```yaml
+assistant_hub_connector:
+  pairing_identity_provider: symfony_session
+```
+
+Le site doit alors :
+
+1. protéger `/connector/authorize` par son firewall ;
+2. mapper le `UserInterface` vers un identifiant stable avec
+   `SessionUserIdentityMapperInterface` ;
+3. implémenter `LocalAuthorizationInterface` afin de recharger l’utilisateur,
+   vérifier qu’il est toujours actif et recalculer ses rôles ;
+4. exposer les opérations via des capacités PHP injectant les services
+   applicatifs du site.
+
+Le connecteur ne stocke ni cookie de session ni mot de passe. La session sert
+uniquement à identifier l’utilisateur qui donne le consentement. La paire HMAC
+créée ensuite est durable jusqu’à sa révocation et chaque appel reste soumis à
+l’autorisation locale courante.
 
 ## 3. Déclarer une écriture API simple
 

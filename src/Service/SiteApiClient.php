@@ -2,6 +2,7 @@
 
 namespace AssistantHub\SymfonyConnector\Service;
 
+use AssistantHub\SymfonyConnector\Protocol\PairingIdentity;
 use AssistantHub\SymfonyConnector\Protocol\ProtocolException;
 use AssistantHub\SymfonyConnector\Registry\AdapterRegistry;
 use AssistantHub\SymfonyConnector\Store\ConnectorStore;
@@ -25,6 +26,13 @@ final readonly class SiteApiClient
 
     public function login(string $username, string $password): string
     {
+        $pairingIdentity = $this->authenticate($username, $password);
+
+        return $this->store->createVault($pairingIdentity->credentials, $pairingIdentity->identity);
+    }
+
+    public function authenticate(string $username, string $password): PairingIdentity
+    {
         if ('' === trim($username) || '' === $password) {
             throw new ProtocolException('AUTHENTICATION_FAILED', 'Identifiants incomplets.', 401);
         }
@@ -43,7 +51,7 @@ final readonly class SiteApiClient
         $refreshToken = $payload[$refreshField] ?? null;
         $tokens = ['access_token' => $accessToken, 'refresh_token' => is_string($refreshToken) ? $refreshToken : null, 'expires_at' => $this->jwtExpiration($accessToken)];
 
-        return $this->store->createVault($tokens, $identity);
+        return new PairingIdentity($tokens, $identity);
     }
 
     /** @param array<string, mixed> $config @param array<string, mixed> $input @return array<string, mixed> */

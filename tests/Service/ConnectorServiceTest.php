@@ -65,8 +65,21 @@ final class ConnectorServiceTest extends TestCase
         }
     }
 
+    public function testAPhpCapabilityCannotReturnDataOutsideItsDeclaredSchema(): void
+    {
+        [$service, $path] = $this->service(new InvalidReadCapability());
+        try {
+            $this->expectException(ProtocolException::class);
+            $this->expectExceptionMessage('sortie non conforme');
+
+            $service->executeRead('example.invalid.read', [], new Request());
+        } finally {
+            $this->cleanup($path);
+        }
+    }
+
     /** @return array{ConnectorService, string} */
-    private function service(CountingWriteCapability $capability): array
+    private function service(CapabilityInterface $capability): array
     {
         $path = sys_get_temp_dir().'/connector-service-'.bin2hex(random_bytes(8)).'.sqlite';
         $store = new SqliteProposalStore(new ConnectorDatabase($path));
@@ -105,7 +118,20 @@ final class CountingWriteCapability implements CapabilityInterface
 
     public function definition(): CapabilityDefinition
     {
-        return new CapabilityDefinition('example.item.create', '1.0', 'write', 'Create item', 'Test write', [], [], true);
+        return new CapabilityDefinition(
+            'example.item.create',
+            '1.0',
+            'write',
+            'Create item',
+            'Test write',
+            [],
+            [
+                'type' => 'object',
+                'properties' => ['name' => ['type' => 'string']],
+                'required' => ['name'],
+            ],
+            true,
+        );
     }
 
     public function normalizeInput(array $input): array
@@ -127,5 +153,41 @@ final class CountingWriteCapability implements CapabilityInterface
         }
 
         return ['name' => $input['name']];
+    }
+}
+
+final class InvalidReadCapability implements CapabilityInterface
+{
+    public function definition(): CapabilityDefinition
+    {
+        return new CapabilityDefinition(
+            'example.invalid.read',
+            '1.0',
+            'read',
+            'Invalid read',
+            'Test invalid output',
+            ['type' => 'object', 'additionalProperties' => false],
+            [
+                'type' => 'object',
+                'properties' => ['expected' => ['type' => 'string']],
+                'required' => ['expected'],
+            ],
+            false,
+        );
+    }
+
+    public function normalizeInput(array $input): array
+    {
+        return [];
+    }
+
+    public function preview(array $input, LocalContext $context): string
+    {
+        return 'Invalid read.';
+    }
+
+    public function execute(array $input, LocalContext $context): array
+    {
+        return ['unexpected' => true];
     }
 }

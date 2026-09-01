@@ -6,6 +6,7 @@ use AssistantHub\SymfonyConnector\Service\ConnectorService;
 use AssistantHub\SymfonyConnector\Tests\Fixtures\TestKernel;
 use AssistantHub\SymfonyConnector\Tests\Fixtures\TestSiteCapabilityAdapter;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Routing\RouterInterface;
 
 final class BundleContainerTest extends TestCase
 {
@@ -25,6 +26,12 @@ final class BundleContainerTest extends TestCase
                 TestSiteCapabilityAdapter::class,
                 $container->get('test.adapter_registry')->for('test.autoconfigured'),
             );
+
+            $router = $container->get('router');
+            self::assertInstanceOf(RouterInterface::class, $router);
+            self::assertSame('/assistant-hub/capabilities', $router->generate('assistant_hub_connector_capabilities'));
+            self::assertSame('/assistant-hub/actions/test.site.custom/read', $router->generate('assistant_hub_connector_read', ['capabilityId' => 'test.site.custom']));
+            self::assertSame('/assistant-hub/pairing/demo', $router->generate('assistant_hub_connector_pairing_demo'));
         } finally {
             $kernel->shutdown();
         }

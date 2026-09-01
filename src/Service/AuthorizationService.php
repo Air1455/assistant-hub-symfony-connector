@@ -2,13 +2,17 @@
 
 namespace AssistantHub\SymfonyConnector\Service;
 
+use AssistantHub\SymfonyConnector\Contract\PairingIdentityProviderInterface;
 use AssistantHub\SymfonyConnector\Store\ConnectorStore;
 
 final readonly class AuthorizationService
 {
     /** @param list<string> $allowedRedirectUris */
-    public function __construct(private SiteApiClient $api, private ConnectorStore $store, private array $allowedRedirectUris)
-    {
+    public function __construct(
+        private PairingIdentityProviderInterface $identityProvider,
+        private ConnectorStore $store,
+        private array $allowedRedirectUris,
+    ) {
     }
 
     public function validateRequest(array $query): array
@@ -31,9 +35,22 @@ final readonly class AuthorizationService
         return array_intersect_key($query, array_flip(['client_id', 'redirect_uri', 'state', 'code_challenge']));
     }
 
+    public function requiresCredentials(): bool
+    {
+        return $this->identityProvider->requiresCredentials();
+    }
+
+    public function connect(?string $username = null, ?string $password = null): string
+    {
+        $pairingIdentity = $this->identityProvider->acquire($username, $password);
+
+        return $this->store->createVault($pairingIdentity->credentials, $pairingIdentity->identity);
+    }
+
+    /** @deprecated Use connect() so session-based providers can omit credentials. */
     public function login(string $username, string $password): string
     {
-        return $this->api->login($username, $password);
+        return $this->connect($username, $password);
     }
 
     public function authorize(array $authorization, string $vaultId): string

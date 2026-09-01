@@ -13,4 +13,3 @@ assistant_hub_connector_revocation:
 assistant_hub_connector_api:
   resource: ../src/Controller/ConnectorController.php
   type: attribute
-  prefix: /assistant-hub

@@ -13,6 +13,52 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class SiteApiClientTest extends TestCase
 {
+    public function testApiAuthenticationKeepsAccessRefreshAndIdentityData(): void
+    {
+        $path = sys_get_temp_dir().'/site-api-auth-'.bin2hex(random_bytes(8)).'.sqlite';
+        try {
+            $store = new ConnectorStore(new ConnectorDatabase($path), new SecretCipher(str_repeat('k', 32)));
+            $http = new MockHttpClient(function (string $method, string $url, array $options): MockResponse {
+                self::assertSame('POST', $method);
+                self::assertSame('https://api.example.test/api/login_check', $url);
+                self::assertSame([
+                    'email' => 'admin@example.test',
+                    'password' => 'secret',
+                ], json_decode((string) $options['body'], true, 512, JSON_THROW_ON_ERROR));
+
+                return new MockResponse(json_encode([
+                    'token' => 'access-token',
+                    'refresh_token' => 'refresh-token',
+                    'user' => [
+                        'id' => 7,
+                        'email' => 'admin@example.test',
+                        'roles' => ['ROLE_ADMIN'],
+                    ],
+                ], JSON_THROW_ON_ERROR));
+            });
+            $client = new SiteApiClient($http, $store, new AdapterRegistry([]), 'https://api.example.test', [
+                'login_path' => '/api/login_check',
+                'refresh_path' => '/api/token/refresh',
+                'refresh_token_field' => 'refresh_token',
+                'access_token_field' => 'token',
+                'username_field' => 'email',
+                'password_field' => 'password',
+                'identity_field' => 'user',
+            ]);
+
+            $identity = $client->authenticate('admin@example.test', 'secret');
+
+            self::assertSame('access-token', $identity->credentials['access_token']);
+            self::assertSame('refresh-token', $identity->credentials['refresh_token']);
+            self::assertSame(7, $identity->identity['id']);
+            self::assertSame(['ROLE_ADMIN'], $identity->identity['roles']);
+        } finally {
+            @unlink($path);
+            @unlink($path.'-wal');
+            @unlink($path.'-shm');
+        }
+    }
+
     public function testConfirmedWriteForwardsTheStableIdempotencyKey(): void
     {
         $path = sys_get_temp_dir().'/site-api-'.bin2hex(random_bytes(8)).'.sqlite';

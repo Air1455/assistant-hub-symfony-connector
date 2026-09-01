@@ -27,5 +27,18 @@ final class ConfigurationTest extends TestCase
         self::assertSame('explicit-test-encryption-key-32-bytes', $config['encryption_key']);
         self::assertSame('https://api.example.test', $config['api_base_url']);
         self::assertSame(['https://hub.example.test/sites/callback'], $config['allowed_hub_redirect_uris']);
+        self::assertSame('api_token', $config['pairing_identity_provider']);
+    }
+
+    public function testSymfonySessionConfigurationDoesNotRequireAnApiUrl(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'encryption_key' => 'explicit-test-encryption-key-32-bytes',
+            'pairing_identity_provider' => 'symfony_session',
+            'allowed_hub_redirect_uris' => ['https://hub.example.test/sites/callback'],
+        ]]);
+
+        self::assertSame('symfony_session', $config['pairing_identity_provider']);
+        self::assertSame('', $config['api_base_url']);
     }
 }

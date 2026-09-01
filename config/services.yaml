@@ -11,6 +11,7 @@ services:
       - '../src/Protocol/'
       - '../src/Example/'
       - '../src/Capability/ConfiguredApiCapability.php'
+      - '../src/Security/SymfonySessionPairingIdentityProvider.php'
 
   AssistantHub\SymfonyConnector\Registry\CapabilityRegistry:
     arguments:
@@ -18,6 +19,9 @@ services:
 
   AssistantHub\SymfonyConnector\Contract\PairAuthenticatorInterface:
     alias: AssistantHub\SymfonyConnector\Security\HmacPairAuthenticator
+
+  AssistantHub\SymfonyConnector\Contract\SessionUserIdentityMapperInterface:
+    alias: AssistantHub\SymfonyConnector\Security\DefaultSessionUserIdentityMapper
 
   AssistantHub\SymfonyConnector\Contract\LocalAuthorizationInterface:
     alias: AssistantHub\SymfonyConnector\Security\VaultLocalAuthorization
