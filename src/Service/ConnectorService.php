@@ -3,6 +3,7 @@
 namespace AssistantHub\SymfonyConnector\Service;
 
 use AssistantHub\SymfonyConnector\Contract\CapabilityInterface;
+use AssistantHub\SymfonyConnector\Contract\PreparedCapabilityInterface;
 use AssistantHub\SymfonyConnector\Contract\LocalAuthorizationInterface;
 use AssistantHub\SymfonyConnector\Contract\PairAuthenticatorInterface;
 use AssistantHub\SymfonyConnector\Contract\ProposalStoreInterface;
@@ -79,12 +80,18 @@ final class ConnectorService
 
         $normalized = $this->normalize($capability, $input);
         $context = $this->localAuthorization->authorize($pair, $definition, $normalized);
+        // The site, not the model, freezes execution arguments and the complete preview.
+        $prepared = $capability instanceof PreparedCapabilityInterface
+            ? $capability->prepare($normalized, $context)
+            : null;
         $proposal = Proposal::create(
             $pair->pairId,
             $definition,
-            $normalized,
-            $capability->preview($normalized, $context),
+            $prepared?->input ?? $normalized,
+            $prepared?->summary ?? $capability->preview($normalized, $context),
             $this->proposalTtlSeconds,
+            $prepared?->changes ?? [],
+            $prepared?->notices ?? [],
         );
         $this->proposalStore->save($proposal);
 

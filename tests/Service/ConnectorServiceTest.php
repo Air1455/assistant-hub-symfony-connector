@@ -39,6 +39,42 @@ final class ConnectorServiceTest extends TestCase
         }
     }
 
+    public function testPreparedActionFreezesTheSiteInputAndExactPreviewUntilConfirmation(): void
+    {
+        $capability = new PreparedTestCapability();
+        [$service, $path] = $this->service($capability);
+        try {
+            $proposal = $service->prepareProposal('example.prepared', ['reference' => 7], new Request());
+            self::assertSame(0, $capability->executions);
+            self::assertSame(1, $capability->preparations);
+            self::assertSame(['resolved' => 7, 'version' => 12], $proposal['input']);
+            self::assertSame('Before', $proposal['changes'][0]['before']);
+            self::assertSame('After', $proposal['changes'][0]['after']);
+            $confirmation = new Confirmation($proposal['id'], $proposal['fingerprint'], 'hub-user', new \DateTimeImmutable());
+            $first = $service->executeConfirmed('example.prepared', $confirmation, new Request());
+            self::assertSame($first, $service->executeConfirmed('example.prepared', $confirmation, new Request()));
+            self::assertSame(1, $capability->executions);
+            self::assertSame(1, $capability->preparations, 'Confirmation must not regenerate the prepared inputs.');
+            self::assertSame($proposal['input'], $capability->executedInput);
+        } finally {
+            $this->cleanup($path);
+        }
+    }
+
+    public function testLegacyProposalKeepsItsExactEnvelopeWithoutOptionalPreviewFields(): void
+    {
+        [$service, $path] = $this->service(new CountingWriteCapability());
+        try {
+            $proposal = $service->prepareProposal('example.item.create', ['name' => 'Legacy'], new Request());
+            self::assertArrayNotHasKey('changes', $proposal);
+            self::assertArrayNotHasKey('notices', $proposal);
+            self::assertSame(['name' => 'Legacy'], $proposal['input']);
+            self::assertSame('Create Legacy', $proposal['summary']);
+        } finally {
+            $this->cleanup($path);
+        }
+    }
+
     public function testFailedExecutionIsNotAutomaticallyReplayed(): void
     {
         $capability = new CountingWriteCapability(true);
@@ -189,5 +225,33 @@ final class InvalidReadCapability implements CapabilityInterface
     public function execute(array $input, LocalContext $context): array
     {
         return ['unexpected' => true];
+    }
+}
+
+final class PreparedTestCapability implements \AssistantHub\SymfonyConnector\Contract\PreparedCapabilityInterface
+{
+    public int $executions = 0;
+    public int $preparations = 0;
+    public array $executedInput = [];
+    public function definition(): CapabilityDefinition
+    {
+        return new CapabilityDefinition('example.prepared', '1.0', 'write', 'Prepared', 'Test',
+            ['type' => 'object', 'properties' => ['reference' => ['type' => 'integer']]],
+            ['type' => 'object', 'properties' => ['done' => ['type' => 'boolean']], 'required' => ['done']], true);
+    }
+    public function normalizeInput(array $input): array { return ['reference' => $input['reference']]; }
+    public function preview(array $input, LocalContext $context): string { throw new \LogicException('Legacy preview must not run.'); }
+    public function prepare(array $input, LocalContext $context): \AssistantHub\SymfonyConnector\Protocol\PreparedAction
+    {
+        ++$this->preparations;
+        return new \AssistantHub\SymfonyConnector\Protocol\PreparedAction(
+            ['resolved' => $input['reference'], 'version' => 12], 'Update one item',
+            [['label' => 'Item', 'before' => 'Before', 'after' => 'After']], ['Original retained.']);
+    }
+    public function execute(array $input, LocalContext $context): array
+    {
+        ++$this->executions;
+        $this->executedInput = $input;
+        return ['done' => true];
     }
 }

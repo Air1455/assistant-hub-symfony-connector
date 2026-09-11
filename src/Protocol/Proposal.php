@@ -15,6 +15,8 @@ final readonly class Proposal
         public \DateTimeImmutable $createdAt,
         public \DateTimeImmutable $expiresAt,
         public string $fingerprint,
+        public array $changes = [],
+        public array $notices = [],
     ) {
     }
 
@@ -25,7 +27,10 @@ final readonly class Proposal
         array $input,
         string $summary,
         int $ttlSeconds,
+        array $changes = [],
+        array $notices = [],
     ): self {
+        PreparedAction::assertPreview($changes, $notices);
         $createdAt = new \DateTimeImmutable();
         $data = [
             'id' => 'proposal_'.bin2hex(random_bytes(16)),
@@ -38,6 +43,10 @@ final readonly class Proposal
             'expiresAt' => $createdAt->modify(sprintf('+%d seconds', $ttlSeconds))->format(DATE_ATOM),
         ];
 
+        // Preserve the exact legacy envelope when the optional extension is unused.
+        if ($changes !== []) $data['changes'] = $changes;
+        if ($notices !== []) $data['notices'] = $notices;
+
         return new self(
             $data['id'],
             $data['pairId'],
@@ -48,6 +57,8 @@ final readonly class Proposal
             $createdAt,
             new \DateTimeImmutable($data['expiresAt']),
             hash('sha256', CanonicalJson::encode($data)),
+            $changes,
+            $notices,
         );
     }
 
@@ -64,6 +75,8 @@ final readonly class Proposal
             new \DateTimeImmutable((string) $data['createdAt']),
             new \DateTimeImmutable((string) $data['expiresAt']),
             (string) $data['fingerprint'],
+            $data['changes'] ?? [],
+            $data['notices'] ?? [],
         );
     }
 
@@ -85,6 +98,8 @@ final readonly class Proposal
             'createdAt' => $this->createdAt->format(DATE_ATOM),
             'expiresAt' => $this->expiresAt->format(DATE_ATOM),
             'fingerprint' => $this->fingerprint,
+            ...($this->changes !== [] ? ['changes' => $this->changes] : []),
+            ...($this->notices !== [] ? ['notices' => $this->notices] : []),
         ];
     }
 }
